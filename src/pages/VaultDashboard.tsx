@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { supabase } from "../lib/supabase";
+import { localDb } from "../lib/localDb";
 import GlassCard from "../components/GlassCard";
 import GlassButton from "../components/GlassButton";
 import {
@@ -51,19 +51,15 @@ export default function VaultDashboard({ onNavigate }: Props) {
 
   const loadFiles = async () => {
     if (!user) return;
-
-    const { data, error } = await supabase
-      .from("vault_files")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("❌ Load files error:", error);
-      return;
+    try {
+      const data = await localDb.getFiles(user.id);
+      const sorted = [...data].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      setFiles(sorted);
+    } catch (err) {
+      console.error("❌ Load files error:", err);
     }
-
-    setFiles(data || []);
   };
 
   useEffect(() => {
@@ -98,25 +94,7 @@ export default function VaultDashboard({ onNavigate }: Props) {
 
       const storagePath = `${user.id}/${crypto.randomUUID()}-${file.name}.qvx`;
 
-      const { error: uploadError } = await supabase.storage
-        .from("qx-vault")
-        .upload(storagePath, encryptedBlob);
-
-      if (uploadError) throw uploadError;
-
-      let type: "image" | "video" | "document" = "document";
-      if (file.type.startsWith("image")) type = "image";
-      else if (file.type.startsWith("video")) type = "video";
-
-      const { error: dbError } = await supabase.from("vault_files").insert({
-        user_id: user.id,
-        file_name: file.name,
-        file_type: type,
-        storage_path: storagePath,
-      });
-
-      if (dbError) throw dbError;
-
+      await localDb.saveFile(user.id, file.name, type, storagePath, encryptedBlob);
       await loadFiles();
     } catch (err) {
       console.error("❌ Upload failed:", err);
@@ -139,11 +117,7 @@ export default function VaultDashboard({ onNavigate }: Props) {
       const [, sk] = await deriveKyberKeyPair(neuralPassword);
 
       setCryptoStatus("Downloading file…");
-      const { data, error } = await supabase.storage
-        .from("qx-vault")
-        .download(file.storage_path);
-
-      if (error || !data) throw error;
+      const data = await localDb.getFileBlob(file.storage_path);
 
       setCryptoStatus("Decrypting file…");
       const decryptedBlob = await decryptQuantumFile(
@@ -171,26 +145,13 @@ export default function VaultDashboard({ onNavigate }: Props) {
   /* ───────── DELETE ───────── */
 
   const deleteFile = async (file: VaultFile) => {
-    const { error: storageError } = await supabase.storage
-      .from("qx-vault")
-      .remove([file.storage_path]);
-
-    if (storageError) {
-      alert("Storage delete failed");
-      return;
+    try {
+      await localDb.deleteFile(file.id, file.storage_path);
+      setFiles((prev) => prev.filter((f) => f.id !== file.id));
+    } catch (err) {
+      console.error(err);
+      alert("Delete failed");
     }
-
-    const { error: dbError } = await supabase
-      .from("vault_files")
-      .delete()
-      .eq("id", file.id);
-
-    if (dbError) {
-      alert("Database delete failed");
-      return;
-    }
-
-    setFiles((prev) => prev.filter((f) => f.id !== file.id));
   };
 
   /* ───────── LOGOUT ───────── */

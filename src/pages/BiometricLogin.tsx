@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { supabase } from "../lib/supabase";
+import { localDb } from "../lib/localDb";
 
 import GlassCard from "../components/GlassCard";
 import GlassButton from "../components/GlassButton";
@@ -33,15 +33,7 @@ export default function BiometricLogin({ onNavigate }: Props) {
 
     const checkBiometric = async (): Promise<void> => {
       try {
-        const { data, error: fetchError } = await supabase
-          .from("biometric_status")
-          .select("enabled")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (fetchError) {
-          throw fetchError;
-        }
+        const data = await localDb.getBiometricStatus(user.id);
 
         if (!data || !data.enabled) {
           throw new Error("Biometric not enabled");

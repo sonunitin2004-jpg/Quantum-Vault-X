@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { supabase } from "../lib/supabase";
+import { localDb } from "../lib/localDb";
 
 import GlassCard from "../components/GlassCard";
 import GlassInput from "../components/GlassInput";
@@ -43,13 +43,9 @@ export default function NeuralPasswordVerify({
     setLoading(true);
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from("neural_passwords")
-        .select("password_hash")
-        .eq("user_id", user.id)
-        .single();
+      const data = await localDb.getNeuralPassword(user.id);
 
-      if (fetchError || !data) {
+      if (!data) {
         throw new Error("Neural password not found");
       }
 

@@ -11,7 +11,7 @@ import BiometricLogin from "./pages/BiometricLogin";
 import VaultDashboard from "./pages/VaultDashboard";
 
 import { AppPage } from "./types/appPage";
-import { supabase, isSupabaseConfigured } from "./lib/supabase";
+import { localDb } from "./lib/localDb";
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -30,29 +30,24 @@ function AppContent() {
       }
 
       // 2️⃣ CHECK NEURAL PASSWORD EXISTENCE ONLY
-      const { data: neuralData, error } = await supabase
-        .from("neural_passwords")
-        .select("password_hash")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      try {
+        const neuralData = await localDb.getNeuralPassword(user.id);
 
-      if (error) {
-        console.error("Neural check error:", error);
+        // 3️⃣ NEURAL NOT SET → SETUP
+        if (!neuralData || !neuralData.password_hash) {
+          setPage("neural-setup");
+          setResolving(false);
+          return;
+        }
+
+        // 4️⃣ NEURAL EXISTS → LOGIN REQUIRED (IMPORTANT)
+        setPage("neural-login");
+        setResolving(false);
+      } catch (err) {
+        console.error("Neural check error:", err);
         setPage("neural-setup");
         setResolving(false);
-        return;
       }
-
-      // 3️⃣ NEURAL NOT SET → SETUP
-      if (!neuralData) {
-        setPage("neural-setup");
-        setResolving(false);
-        return;
-      }
-
-      // 4️⃣ NEURAL EXISTS → LOGIN REQUIRED (IMPORTANT)
-      setPage("neural-login");
-      setResolving(false);
     };
 
     resolveFlow();
@@ -88,46 +83,9 @@ function AppContent() {
 }
 
 export default function App() {
-  if (!isSupabaseConfigured) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white p-6 text-center">
-        <div className="max-w-md p-8 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-lg">
-          <h1 className="text-2xl font-bold text-red-400 mb-4">Configuration Required</h1>
-          <p className="text-gray-300 mb-6 text-sm">
-            Supabase environment variables are missing. Please add the following keys to your project's environment variables:
-          </p>
-          <div className="text-left bg-black/40 p-4 rounded-lg font-mono text-xs text-cyan-400 space-y-2 mb-6">
-            <div>VITE_SUPABASE_URL</div>
-            <div>VITE_SUPABASE_ANON_KEY</div>
-          </div>
-          <p className="text-gray-400 text-xs">
-            If deploying on Vercel, set these in the <strong>Environment Variables</strong> tab of your Vercel project settings, then redeploy.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <AuthProvider>
       <AppContent />
     </AuthProvider>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

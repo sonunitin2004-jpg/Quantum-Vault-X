@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { supabase } from "../lib/supabase";
+import { localDb } from "../lib/localDb";
 import { NavigateFn } from "../types/navigation";
 
 import GlassCard from "../components/GlassCard";
@@ -47,15 +47,7 @@ export default function NeuralPasswordLogin({ onNavigate }: Props) {
       // ⚠ TEMP HASH — same method as setup
       const hashedPassword = btoa(neuralPassword);
 
-      const { data, error: fetchError } = await supabase
-        .from("neural_passwords")
-        .select("password_hash")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (fetchError) {
-        throw fetchError;
-      }
+      const data = await localDb.getNeuralPassword(user.id);
 
       if (!data || !data.password_hash) {
         throw new Error("Neural password not found. Please set it again.");

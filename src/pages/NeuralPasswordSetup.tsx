@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { supabase } from "../lib/supabase";
+import { localDb } from "../lib/localDb";
 import { NavigateFn } from "../types/navigation";
 
 import GlassCard from "../components/GlassCard";
@@ -55,20 +55,7 @@ export default function NeuralPasswordSetup({
       // ⚠ TEMP HASH — will be replaced by Argon2 / PQC later
       const passwordHash = btoa(password);
 
-      const { error: supabaseError } = await supabase
-        .from("neural_passwords")
-        .upsert(
-          {
-            user_id: user.id,
-            password_hash: passwordHash,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id" }
-        );
-
-      if (supabaseError) {
-        throw supabaseError;
-      }
+      await localDb.saveNeuralPassword(user.id, passwordHash);
 
       setNeuralPassword(password);
       onNavigate("biometric-setup");

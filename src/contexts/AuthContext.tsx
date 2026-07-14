@@ -1,9 +1,8 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { User, Session } from "@supabase/supabase-js";
-import { supabase } from "../lib/supabase";
+import { localDb, LocalUser } from "../lib/localDb";
 
 interface AuthContextType {
-  user: User | null;
+  user: LocalUser | null;
   loading: boolean;
   neuralPassword: string | null;
   setNeuralPassword: (pwd: string | null) => void;
@@ -15,49 +14,29 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<LocalUser | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [neuralPassword, setNeuralPassword] = useState<string | null>(null);
 
   useEffect(() => {
-    const initAuth = async () => {
-      const { data } = await supabase.auth.getSession();
-      setUser(data.session?.user ?? null);
-      setLoading(false);
-    };
-
-    initAuth();
-
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session: Session | null) => {
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
-
-    return () => {
-      listener.subscription.unsubscribe();
-    };
+    // Initialize session synchronously from localStorage on mount
+    const sessionUser = localDb.getSessionUser();
+    setUser(sessionUser);
+    setLoading(false);
   }, []);
 
   const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-    if (error) throw error;
+    const sessionUser = await localDb.signUp(email, password);
+    setUser(sessionUser);
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) throw error;
+    const sessionUser = await localDb.signIn(email, password);
+    setUser(sessionUser);
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await localDb.signOut();
     setUser(null);
     setNeuralPassword(null);
   };
@@ -86,10 +65,3 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
-
-
-
-
-
-
-

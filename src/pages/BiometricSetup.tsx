@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { supabase } from "../lib/supabase";
+import { localDb } from "../lib/localDb";
 
 import GlassCard from "../components/GlassCard";
 import GlassButton from "../components/GlassButton";
@@ -33,19 +33,7 @@ export default function BiometricSetup({ onNavigate }: Props) {
     setLoading(true);
 
     try {
-      const { error: upsertError } = await supabase
-        .from("biometric_status")
-        .upsert(
-          {
-            user_id: user.id,
-            enabled: true,
-          },
-          { onConflict: "user_id" }
-        );
-
-      if (upsertError) {
-        throw upsertError;
-      }
+      await localDb.saveBiometricStatus(user.id, true);
 
       // fake scan delay for realism
       setTimeout(() => {
